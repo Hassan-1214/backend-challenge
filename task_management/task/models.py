@@ -1,34 +1,45 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.conf import settings
 from django.core.exceptions import ValidationError
 
+User = settings.AUTH_USER_MODEL
+
+
 class Label(models.Model):
-    name  = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=255)
     owner = models.ForeignKey(User, related_name='labels', on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('name', 'owner')  # Ensures label names are unique per user
+
+    def clean(self):
+        if not self.name:
+            raise ValidationError('Label name cannot be empty.')
+        if len(self.name) > 255:
+            raise ValidationError('Label name is too long.')
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
 
+
 class Task(models.Model):
-    title = models.CharField(max_length=200, blank=False, null=False)
+    title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     is_completed = models.BooleanField(default=False)
     owner = models.ForeignKey(User, related_name='tasks', on_delete=models.CASCADE)
     labels = models.ManyToManyField(Label, related_name='tasks', blank=True)
 
-    def __str__(self):
-        return self.title
-    
     def clean(self):
-        # Ensure title is not empty or whitespace
         if not self.title.strip():
-            raise ValidationError('Title cannot be empty or whitespace.')
-        
-        # Ensure title does not exceed 200 characters
-        if len(self.title) > 200:
-            raise ValidationError('Title cannot exceed 200 characters.')
+            raise ValidationError('Task title cannot be empty or just whitespace.')
 
     def save(self, *args, **kwargs):
-        # Run full_clean to trigger validation before saving
         self.full_clean()
-        super(Task, self).save(*args, **kwargs)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.title
